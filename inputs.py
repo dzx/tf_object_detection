@@ -35,6 +35,7 @@ from object_detection.protos import train_pb2
 from object_detection.utils import config_util
 from object_detection.utils import ops as util_ops
 from object_detection.utils import shape_utils
+import sys
 
 HASH_KEY = 'hash'
 HASH_BINS = 1 << 31
@@ -449,7 +450,7 @@ def _get_features_dict(input_dict):
 
 
 def create_train_input_fn(train_config, train_input_config,
-                          model_config):
+                          model_config, skip_n_train=None):
   """Creates a train `input` function for `Estimator`.
 
   Args:
@@ -463,13 +464,13 @@ def create_train_input_fn(train_config, train_input_config,
 
   def _train_input_fn(params=None):
     return train_input(train_config, train_input_config, model_config,
-                       params=params)
+                       params=params, skip_n_train=skip_n_train)
 
   return _train_input_fn
 
 
 def train_input(train_config, train_input_config,
-                model_config, model=None, params=None):
+                model_config, model=None, params=None, skip_n_train=None):
   """Returns `features` and `labels` tensor dictionaries for training.
 
   Args:
@@ -566,7 +567,8 @@ def train_input(train_config, train_input_config,
   dataset = INPUT_BUILDER_UTIL_MAP['dataset_build'](
       train_input_config,
       transform_input_data_fn=transform_and_pad_input_data_fn,
-      batch_size=params['batch_size'] if params else train_config.batch_size)
+      batch_size=params['batch_size'] if params else train_config.batch_size,
+      skip_n=skip_n_train)
   return dataset
 
 

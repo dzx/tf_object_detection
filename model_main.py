@@ -53,14 +53,23 @@ flags.DEFINE_boolean(
     'run_once', False, 'If running in eval-only mode, whether to run just '
     'one round of eval vs running continuously (default).'
 )
+flags.DEFINE_integer('skip_n_train', None, 'Number of training samples to skip')
+flags.DEFINE_integer('train_shuffle_seed', None, 'Seed for shuffling train set')
+flags.DEFINE_integer('save_checkpoint_secs', 1800, 'Time between checkpoints')
+flags.DEFINE_boolean('multi_gpu', False, 'Use multiple GPUs')
 FLAGS = flags.FLAGS
 
 
 def main(unused_argv):
   flags.mark_flag_as_required('model_dir')
   flags.mark_flag_as_required('pipeline_config_path')
-  config = tf.estimator.RunConfig(model_dir=FLAGS.model_dir)
+  config = tf.estimator.RunConfig(model_dir=FLAGS.model_dir,
+                                  save_checkpoints_secs=FLAGS.save_checkpoint_secs)
+  if FLAGS.multi_gpu:
+    strategy = tf.distribute.MirroredStrategy()
+    config.replace(train_distribute=strategy, eval_distribute=strategy)
 
+  
   train_and_eval_dict = model_lib.create_estimator_and_inputs(
       run_config=config,
       hparams=model_hparams.create_hparams(FLAGS.hparams_overrides),
@@ -68,7 +77,7 @@ def main(unused_argv):
       train_steps=FLAGS.num_train_steps,
       sample_1_of_n_eval_examples=FLAGS.sample_1_of_n_eval_examples,
       sample_1_of_n_eval_on_train_examples=(
-          FLAGS.sample_1_of_n_eval_on_train_examples))
+          FLAGS.sample_1_of_n_eval_on_train_examples), skip_n_train=FLAGS.skip_n_train)
   estimator = train_and_eval_dict['estimator']
   train_input_fn = train_and_eval_dict['train_input_fn']
   eval_input_fns = train_and_eval_dict['eval_input_fns']

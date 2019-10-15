@@ -534,6 +534,7 @@ def create_estimator_and_inputs(run_config,
                                 save_final_config=False,
                                 postprocess_on_cpu=False,
                                 export_to_tpu=None,
+                                skip_n_train=None,
                                 **kwargs):
   """Creates `Estimator`, input functions, and steps.
 
@@ -644,7 +645,7 @@ def create_estimator_and_inputs(run_config,
   train_input_fn = create_train_input_fn(
       train_config=train_config,
       train_input_config=train_input_config,
-      model_config=model_config)
+      model_config=model_config, skip_n_train=skip_n_train)
   eval_input_fns = [
       create_eval_input_fn(
           eval_config=eval_config,

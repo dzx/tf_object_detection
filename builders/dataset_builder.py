@@ -45,7 +45,7 @@ def make_initializable_iterator(dataset):
   return iterator
 
 
-def read_dataset(file_read_func, input_files, config):
+def read_dataset(file_read_func, input_files, config, skip_n=None):
   """Reads a dataset, and handles repetition and shuffling.
 
   Args:
@@ -53,6 +53,7 @@ def read_dataset(file_read_func, input_files, config):
       read every individual file into a tf.data.Dataset.
     input_files: A list of file paths to read.
     config: A input_reader_builder.InputReader object.
+    skip_n: Number of records to skip
 
   Returns:
     A tf.data.Dataset of (undecoded) tf-records based on config.
@@ -83,13 +84,37 @@ def read_dataset(file_read_func, input_files, config):
           file_read_func,
           cycle_length=num_readers,
           block_length=config.read_block_length,
-          sloppy=config.shuffle))
+          sloppy=(config.shuffle and skip_n is None)))
+  if skip_n != None:
+    tf.logging.info('Skipping {} records from dataset'.format(skip_n))
+    records_dataset = records_dataset.skip(skip_n)
+    tf.logging.info('Done with skipping')
   if config.shuffle:
     records_dataset = records_dataset.shuffle(config.shuffle_buffer_size)
   return records_dataset
 
+class MyDataset(tf.data.TFRecordDataset):
+  def __init__(self, *args, **kwargs):
+    tf.logging.warn('THERE: Initializing MyDataset', stack_info=True)
+    super(MyDataset, self).__init__(*args, **kwargs)
 
-def build(input_reader_config, batch_size=None, transform_input_data_fn=None):
+  def skip(self, count):
+    tf.logging.warn('THERE: Skip({}) has been invoked on a dataset',format(count), stack_info=True)
+    return super(MyDataset, self).skip(count)
+
+  def range(self, *args):
+    tf.logging.warn('THERE: range({}) has been invoked on a dataset',format(args[0]), stack_info=True)
+    return super(MyDataset, self).range( *args)
+
+  def window(self, *args, **kwargs):
+    tf.logging.warn('THERE: window({}) has been invoked on a dataset',format(args[0]), stack_info=True)
+    return super(MyDataset, self).window(*args, **kwargs)
+
+  def prefetch(self, size):
+    tf.logging.warn('THERE: prefetch({}) has been invoked on a dataset',format(size), stack_info=True)
+    return super(MyDataset, self).prefetch(size)
+
+def build(input_reader_config, batch_size=None, transform_input_data_fn=None, skip_n=None):
   """Builds a tf.data.Dataset.
 
   Builds a tf.data.Dataset by applying the `transform_input_data_fn` on all
@@ -100,6 +125,7 @@ def build(input_reader_config, batch_size=None, transform_input_data_fn=None):
     batch_size: Batch size. If batch size is None, no batching is performed.
     transform_input_data_fn: Function to apply transformation to all records,
       or None if no extra decoding is required.
+    skip_n: Number of records to skip
 
   Returns:
     A tf.data.Dataset based on the input_reader_config.
@@ -138,7 +164,7 @@ def build(input_reader_config, batch_size=None, transform_input_data_fn=None):
 
     dataset = read_dataset(
         functools.partial(tf.data.TFRecordDataset, buffer_size=8 * 1000 * 1000),
-        config.input_path[:], input_reader_config)
+        config.input_path[:], input_reader_config, skip_n) # tf.data.TFRecordDataset
     if input_reader_config.sample_1_of_n_examples > 1:
       dataset = dataset.shard(input_reader_config.sample_1_of_n_examples, 0)
     # TODO(rathodv): make batch size a required argument once the old binaries
