@@ -22,6 +22,7 @@ import tensorflow as tf
 
 from object_detection.core import standard_fields
 from object_detection.utils import dataset_util
+import numpy as np
 
 
 def tf_example_from_annotations_data_frame(annotations_data_frame, label_map,
@@ -102,5 +103,9 @@ def tf_example_from_annotations_data_frame(annotations_data_frame, label_map,
                         lambda x: label_map[x]).as_matrix())
     feature_map[standard_fields.TfExampleFields.
                 image_class_text] = dataset_util.bytes_list_feature(
-                    filtered_data_frame_labels.LabelName.as_matrix()),
+                    filtered_data_frame_labels.LabelName.as_matrix())
+  if 'Weight' in filtered_data_frame_labels.columns:
+    feature_map[standard_fields.TfExampleFields.
+                object_weight] = dataset_util.float_list_feature(
+                  filtered_data_frame_boxes.Weight.as_matrix())
   return tf.train.Example(features=tf.train.Features(feature=feature_map))

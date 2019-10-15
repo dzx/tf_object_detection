@@ -59,6 +59,8 @@ tf.flags.DEFINE_string(
     'Path to the output TFRecord. The shard index and the number of shards '
     'will be appended for each output shard.')
 tf.flags.DEFINE_integer('num_shards', 100, 'Number of TFRecord shards')
+tf.flags.DEFINE_integer('sample_n_unlabeled', None, 'Number of unlabaled images to include')
+tf.flags.DEFINE_integer('unlabaled_seed', None, 'Random seed to use if sampling unlabeled images')
 
 FLAGS = tf.flags.FLAGS
 
@@ -86,6 +88,18 @@ def main(_):
       os.path.join(FLAGS.input_images_directory, '*.jpg'))
   all_image_ids = [os.path.splitext(os.path.basename(v))[0] for v in all_images]
   all_image_ids = pd.DataFrame({'ImageID': all_image_ids})
+  if FLAGS.sample_n_unlabeled != None:
+    all_annotations = pd.concat(
+      [all_box_annotations, all_label_annotations])
+    unlabeled_imgs = all_image_ids[~all_image_ids.ImageID.isin(all_annotations.ImageID)]
+    discard_count = len(unlabeled_imgs) - FLAGS.sample_n_unlabeled
+    if discard_count > 0:
+      if FLAGS.sample_n_unlabeled > 0:
+        imgs2discard = unlabeled_imgs.ImageID.sample(discard_count, random_state=FLAGS.unlabaled_seed)
+      else:
+        imgs2discard = unlabeled_imgs
+      all_image_ids = all_image_ids[~all_image_ids.ImageID.isin(imgs2discard)]
+
   all_annotations = pd.concat(
       [all_box_annotations, all_image_ids, all_label_annotations])
 
@@ -103,7 +117,7 @@ def main(_):
       image_id, image_annotations = image_data
       # In OID image file names are formed by appending ".jpg" to the image ID.
       image_path = os.path.join(FLAGS.input_images_directory, image_id + '.jpg')
-      with tf.gfile.Open(image_path) as image_file:
+      with tf.gfile.Open(image_path, mode='rb') as image_file:
         encoded_image = image_file.read()
 
       tf_example = oid_tfrecord_creation.tf_example_from_annotations_data_frame(
